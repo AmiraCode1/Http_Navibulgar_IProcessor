@@ -75,8 +75,8 @@ namespace Http_Navibulgar_IProcessor
                     LogText = "Process started for " + Userid;
 
                     LogText = "Uploading files to cloud";
-                    //UploadOnCloud("Screenshots", UploadFileType.Attachments, ImgPath);
-                    //UploadOnCloud("MTML files", UploadFileType.MtmlInbox, RFQPath);
+                    UploadOnCloud("Screenshots", UploadFileType.Attachments, ImgPath);
+                    UploadOnCloud("MTML files", UploadFileType.MtmlInbox, RFQPath);
                     UploadAudits();
                     LogText = "Uploading files to cloud completed";
                 }
@@ -89,7 +89,7 @@ namespace Http_Navibulgar_IProcessor
             finally
             {
                 LogText = $"{MODULE_NAME} completed!";
-                //UploadLogFile();
+                UploadLogFile();
 
             }
         }
@@ -793,89 +793,117 @@ namespace Http_Navibulgar_IProcessor
                     this.Port = lst[2];
                     URL = lst[3];
 
-                    URL = $"{cSiteURL}suppliers/" + URL;
-                    LogText = "Processing RFQ for ref no " + this.VRNO;
+                    string filePathoflist = "";
+                    filePathoflist = Path.Combine(Environment.CurrentDirectory, "DownloadedRFQ_" + cBranchList + ".txt");
 
-                    LoadURL("input", "id", "MainContent_btnUpdate");
+                    string[] lines = new string[] { };
+                    lines = File.ReadAllLines(filePathoflist);
 
-                    string eFile = this.ImgPath + "\\" + this.VRNO.Replace("/", "_") + "_" + DateTime.Now.ToString("yyyyMMddHHmmss") + "_" + SupplierCode + ".png";
-                    if (!PrintScreen(eFile)) eFile = "";
-                    MTMLInterchange interchange = new MTMLInterchange();
-                    DocHeader docHeader = new DocHeader();
+                    string check = convert.ToString(VRNO + "|" + this.Vessel + "|" + this.Port);
+                    bool containsDigit = false;
 
-                    interchange.PreparationDate = DateTime.Now.ToString("yyyy-MMM-dd");
-                    interchange.PreparationTime = DateTime.Now.ToString("HH:mm");
-                    interchange.ControlReference = DateTime.Now.ToString("yyyyMMddHHmmss");
-                    interchange.Identifier = DateTime.Now.ToString("yyyyMMddHHmmss");
-                    interchange.Recipient = SUPPLIER_LINK_CODE;
-                    interchange.Sender = BUYER_LINK_CODE;
-                    LineItemCollection lineItems = new LineItemCollection();
-                    PartyCollection parties = new PartyCollection();
-
-
-                    if (GetRFQHeader(ref docHeader, eFile))
+                    foreach (string line in lines)
                     {
-                        interchange.DocumentHeader.MessageNumber = docHeader.References[0].ReferenceNumber;
-                        interchange.DocumentHeader = docHeader;
-                        if (GetRFQItems(ref lineItems))
+                        if (line.Contains(check))
                         {
-                            docHeader.LineItems = lineItems;
-                            if (GetAddress(ref parties))
+                            containsDigit = true;
+                            break;
+                        }
+                    }
+                    //if contains do not process
+                    if (containsDigit)
+                    {
+                        LogText = "Rfq already prcessed : " + check;
+                    }//process
+                    else
+                    {
+                        URL = $"{cSiteURL}suppliers/" + URL;
+                        LogText = "Processing RFQ for ref no " + this.VRNO;
+
+                        LoadURL("input", "id", "MainContent_btnUpdate");
+
+                        string eFile = this.ImgPath + "\\" + this.VRNO.Replace("/", "_") + "_" + DateTime.Now.ToString("yyyyMMddHHmmss") + "_" + SupplierCode + ".png";
+                        if (!PrintScreen(eFile)) eFile = "";
+                        MTMLInterchange interchange = new MTMLInterchange();
+                        DocHeader docHeader = new DocHeader();
+
+                        interchange.PreparationDate = DateTime.Now.ToString("yyyy-MMM-dd");
+                        interchange.PreparationTime = DateTime.Now.ToString("HH:mm");
+                        interchange.ControlReference = DateTime.Now.ToString("yyyyMMddHHmmss");
+                        interchange.Identifier = DateTime.Now.ToString("yyyyMMddHHmmss");
+                        interchange.Recipient = SUPPLIER_LINK_CODE;
+                        interchange.Sender = BUYER_LINK_CODE;
+                        LineItemCollection lineItems = new LineItemCollection();
+                        PartyCollection parties = new PartyCollection();
+
+
+                        if (GetRFQHeader(ref docHeader, eFile))
+                        {
+                            interchange.DocumentHeader.MessageNumber = docHeader.References[0].ReferenceNumber;
+                            interchange.DocumentHeader = docHeader;
+                            if (GetRFQItems(ref lineItems))
                             {
-                                docHeader.PartyAddresses = parties;
-                                string fileName = "RFQ_" + this.VRNO.Replace("/", "_") + "_" + DateTime.Now.ToString("yyyyMMddhhmmss") + ".xml";
-                                string filePath = Path.Combine(RFQPath, fileName);
-                                if (lineItems.Count > 0)
+                                docHeader.LineItems = lineItems;
+                                docHeader.LineItemCount = lineItems.Count();
+
+                                if (GetAddress(ref parties))
                                 {
-                                    interchange.DocumentHeader = docHeader;
-                                    //_lesXml.FileName = xmlfile;
-                                    MTMLClass _class = new MTMLClass();
-                                    LogText = "Creating MTML RFQ";
-                                    _class.Create(interchange, filePath);
-                                    AuditMessageData.CreateAuditFile(fileName, MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "RFQ Generated Successfully for " + UCRefNo);
-                                    _fileStore.AppendText($"DownloadedRFQ_{cBranchList}.txt", UCRefNo + "|" + this.Vessel + "|" + this.Port + Environment.NewLine);
-                                    //if (File.Exists(_lesXml.FilePath + "\\" + _lesXml.FileName))
-                                    //{
-                                    //    LogText = xmlfile + " downloaded successfully.";
-                                    //    LogText = "";
-                                    //    //CreateAuditFile(xmlfile, "Navibulgar_HTTP_Processor", VRNO, "Downloaded", xmlfile + " downloaded successfully.", BuyerCode, SupplierCode, AuditPath);
-                                    //    if ((this.VRNO + "|" + this.Vessel + "|" + this.Port).Length > 0)
-                                    //        File.AppendAllText(AppDomain.CurrentDomain.BaseDirectory + this.Domain + "_" + this.SupplierCode + "_GUID.txt", this.VRNO + "|" + this.Vessel + "|" + this.Port + Environment.NewLine);
-                                    //}
-                                    //else
-                                    //{
-                                    //    LogText = "Unable to download file " + xmlfile;
-                                    //    string filename = PrintScreenPath + "\\Navibulgar_RFQError_" + DateTime.Now.ToString("ddMMyyyHHmmssfff") + ".png";
-                                    //    //CreateAuditFile(filename, "Navibulgar_HTTP_Processor", VRNO, "Error", "Unable to download file " + xmlfile + " for ref " + VRNO + ".", BuyerCode, SupplierCode, AuditPath);
-                                    //    //CreateAuditFile(filename, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1004:Unable to process file " + xmlfile + " for ref " + VRNO, BuyerCode, SupplierCode, AuditPath);
-                                    //    if (PrintScreen(filename)) filename = "";
-                                    //}
+                                    docHeader.PartyAddresses = parties;
+                                    string fileName = "RFQ_" + this.VRNO.Replace("/", "_") + "_" + DateTime.Now.ToString("yyyyMMddhhmmss") + ".xml";
+                                    string filePath = Path.Combine(RFQPath, fileName);
+                                    if (lineItems.Count > 0)
+                                    {
+                                        interchange.DocumentHeader = docHeader;
+                                        //_lesXml.FileName = xmlfile;
+                                        MTMLClass _class = new MTMLClass();
+                                        LogText = "Creating MTML RFQ";
+                                        _class.Create(interchange, filePath);
+                                        AuditMessageData.CreateAuditFile(fileName, MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "RFQ Generated Successfully for " + UCRefNo);
+                                        _fileStore.AppendText($"DownloadedRFQ_{cBranchList}.txt", UCRefNo + "|" + this.Vessel + "|" + this.Port + Environment.NewLine);
+                                        //if (File.Exists(_lesXml.FilePath + "\\" + _lesXml.FileName))
+                                        //{
+                                        //    LogText = xmlfile + " downloaded successfully.";
+                                        //    LogText = "";
+                                        //    //CreateAuditFile(xmlfile, "Navibulgar_HTTP_Processor", VRNO, "Downloaded", xmlfile + " downloaded successfully.", BuyerCode, SupplierCode, AuditPath);
+                                        //    if ((this.VRNO + "|" + this.Vessel + "|" + this.Port).Length > 0)
+                                        //        File.AppendAllText(AppDomain.CurrentDomain.BaseDirectory + this.Domain + "_" + this.SupplierCode + "_GUID.txt", this.VRNO + "|" + this.Vessel + "|" + this.Port + Environment.NewLine);
+                                        //}
+                                        //else
+                                        //{
+                                        //    LogText = "Unable to download file " + xmlfile;
+                                        //    string filename = PrintScreenPath + "\\Navibulgar_RFQError_" + DateTime.Now.ToString("ddMMyyyHHmmssfff") + ".png";
+                                        //    //CreateAuditFile(filename, "Navibulgar_HTTP_Processor", VRNO, "Error", "Unable to download file " + xmlfile + " for ref " + VRNO + ".", BuyerCode, SupplierCode, AuditPath);
+                                        //    //CreateAuditFile(filename, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1004:Unable to process file " + xmlfile + " for ref " + VRNO, BuyerCode, SupplierCode, AuditPath);
+                                        //    if (PrintScreen(filename)) filename = "";
+                                        //}
+
+                                    }
+                                    else
+                                    {
+                                        LogText = "Unable to get address details";
+                                        AuditMessageData.CreateAuditFile(fileName, MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-address Field(s) not present" + UCRefNo);
+
+                                        //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-address Field(s) not present", BuyerCode, SupplierCode, AuditPath);
+                                    }
 
                                 }
                                 else
                                 {
-                                    LogText = "Unable to get address details";
-                                    AuditMessageData.CreateAuditFile(fileName, MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-address Field(s) not present" + UCRefNo);
-
-                                    //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-address Field(s) not present", BuyerCode, SupplierCode, AuditPath);
+                                    LogText = "Unable to get RFQ item details";
+                                    //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-RFQ item Field(s) not present", BuyerCode, SupplierCode, AuditPath);
+                                    AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-address Field(s) not present" + UCRefNo);
                                 }
-
                             }
                             else
                             {
-                                LogText = "Unable to get RFQ item details";
-                                //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-RFQ item Field(s) not present", BuyerCode, SupplierCode, AuditPath);
+                                LogText = "Unable to get RFQ header details";
+                                //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-RFQ header Field(s) not present", BuyerCode, SupplierCode, AuditPath);
                                 AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-address Field(s) not present" + UCRefNo);
+
                             }
                         }
-                        else
-                        {
-                            LogText = "Unable to get RFQ header details";
-                            //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-RFQ header Field(s) not present", BuyerCode, SupplierCode, AuditPath);
-                            AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-address Field(s) not present" + UCRefNo);
-
-                        }
                     }
+             
                 }
                 catch (Exception ex)
                 {
@@ -1244,6 +1272,7 @@ namespace Http_Navibulgar_IProcessor
                 {
                     LogText = "No quote document found in directory.";
                 }
+               
                 //CheckQuoteFiles();//added by kalpita on 09/01/2020
 
                 //LogText = "";
@@ -1394,6 +1423,7 @@ namespace Http_Navibulgar_IProcessor
                                                 screenshotpath = Path.Combine(ImgPath, eFile);
                                                 PrintScreen(screenshotpath);
                                                 _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToBackup, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+                                                AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.SUBMIT_SUCCESS, BuyerCode, SupplierCode, currDocType, "PO Generated Successfully for " + UCRefNo);
 
                                                 //MoveToBakup(MTML_QuoteFile, "Quote '" + UCRefNo + "' submitted successfully.", eFile);
 
@@ -1413,6 +1443,7 @@ namespace Http_Navibulgar_IProcessor
                                                 PrintScreen(screenshotpath);
                                                 _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
                                                 //SendMailNotification_JSON(UCRefNo, SendMailQueueAction.SAVED, DocType.QUOTE, AuditMessageData.UNABLE_TO_SUBMIT, "", "", BUYER_LINK_CODE, SUPPLIER_LINK_CODE, LINKID, NotificationPath, 0, MODULE_NAME + "_QUOTE");
+                                                AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1011:Unable to submit Quote for '" + UCRefNo);
 
                                                 //MoveToError("Unable to submit quote for '" + UCRefNo + "'", UCRefNo, MTML_QuoteFile, eFile);
                                                 //MoveToError("LeS-1011:Unable to submit Quote for '" + UCRefNo + "'", UCRefNo, MTML_QuoteFile, eFile);
@@ -1424,7 +1455,7 @@ namespace Http_Navibulgar_IProcessor
                                             string screenshotpath = Path.Combine(ImgPath, eFile);
                                             PrintScreen(screenshotpath);
                                             _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
-
+                                            AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1008.1:Unable to save quote due to amount mismatched");
                                             //MoveToError("Total mismatched as site total " + total + " and mtml total " + GrandTotal, UCRefNo, MTML_QuoteFile, eFile);
                                             //MoveToError("LeS-1008.1:Unable to save quote due to amount mismatched", UCRefNo, MTML_QuoteFile, eFile);
                                         }
@@ -1434,6 +1465,7 @@ namespace Http_Navibulgar_IProcessor
                                             string screenshotpath = Path.Combine(ImgPath, eFile);
                                             PrintScreen(screenshotpath);
                                             _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+                                            AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1008:Unable to save quotation");
 
                                             //MoveToError("Unable to save quotation." + GrandTotal, UCRefNo, MTML_QuoteFile, eFile);
                                             // MoveToError("LeS-1008:Unable to save quotation", UCRefNo, MTML_QuoteFile, eFile);
@@ -1447,6 +1479,7 @@ namespace Http_Navibulgar_IProcessor
                                             string screenshotpath = Path.Combine(ImgPath, eFile);
                                             PrintScreen(screenshotpath);
                                             _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToBackup, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+                                            AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1011.1:Unable to submit Quote since Quotation is already submitted for " + UCRefNo);
 
                                             //MoveToError("Quotation is already submitted for Ref No '" + UCRefNo + "'.", UCRefNo, MTML_QuoteFile, eFile);
                                             //MoveToError("LeS-1011.1:Unable to submit Quote since Quotation is already submitted for " + UCRefNo + ".", UCRefNo, MTML_QuoteFile, eFile);
@@ -1457,6 +1490,7 @@ namespace Http_Navibulgar_IProcessor
                                             string screenshotpath = Path.Combine(ImgPath, eFile);
                                             PrintScreen(screenshotpath);
                                             _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+                                            AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1011.1:Unable to Submit Quote since submit button is not active for " + UCRefNo);
 
                                             //MoveToError("Submit button is disabled for quote '" + UCRefNo + "'", UCRefNo, MTML_QuoteFile, eFile);
                                             //MoveToError("LeS-1011.1:Unable to Submit Quote since submit button is not active for " + UCRefNo, UCRefNo, MTML_QuoteFile, eFile);
@@ -1469,6 +1503,7 @@ namespace Http_Navibulgar_IProcessor
                                     string screenshotpath = Path.Combine(ImgPath, eFile);
                                     PrintScreen(screenshotpath);
                                     _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+                                    AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1008.3:Unable to Save Quote due to missing controls for " + UCRefNo);
 
                                     //MoveToError("Unable to get save button for refno " + UCRefNo, UCRefNo, MTML_QuoteFile, eFile);
                                     //MoveToError("LeS-1008.3:Unable to Save Quote due to missing controls for " + UCRefNo, UCRefNo, MTML_QuoteFile, eFile);
@@ -1480,6 +1515,8 @@ namespace Http_Navibulgar_IProcessor
                                 eFile = "Navigation_" + SupplierCode + "_" + BuyerCode + "_" + convert.ToFileName(UCRefNo) + "_" + DateTime.Now.ToString("ddMMyyHHmmssff") + ".png";
                                 PrintScreen(ImgPath + "\\" + eFile);
                                 _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+                                AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1003.1:Issue after loading URL as Ref No. mismatched with site Ref No. " + _hRefNo.InnerText.Trim());
+
                                 //MoveToError("Ref No. mismatch betwwen site ref no " + _hRefNo.InnerText.Trim() + " and quote file ref no " + UCRefNo + ".", UCRefNo, MTML_QuoteFile, eFile);
                                 //MoveToError("LeS-1003.1:Issue after loading URL as Ref No. mismatched with site Ref No. " + _hRefNo.InnerText.Trim(), UCRefNo, MTML_QuoteFile, eFile);
                             }
@@ -1490,6 +1527,7 @@ namespace Http_Navibulgar_IProcessor
                         eFile = "Navigation_" + SupplierCode + "_" + BuyerCode + "_" + convert.ToFileName(UCRefNo) + "_" + DateTime.Now.ToString("ddMMyyHHmmssff") + ".png";
                         if (PrintScreen(ImgPath + "\\" + eFile)) eFile = "";
                         _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+                        AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.UNABLE_TO_SUBMIT, BuyerCode, SupplierCode, currDocType, "LeS-1006:Unable to filter details.", UCRefNo);
 
                         //MoveToError("Unable to load details page.", UCRefNo, MTML_QuoteFile, eFile);
                         // MoveToError("LeS-1006:Unable to filter details.", UCRefNo, MTML_QuoteFile, eFile);
@@ -2666,7 +2704,7 @@ namespace Http_Navibulgar_IProcessor
                                         LogText = "Unable to download file " + pofile;
                                         string filename = PrintScreenPath + "\\Navibulgar_POError_" + DateTime.Now.ToString("ddMMyyyHHmmssfff") + ".png";
                                         //CreateAuditFile(filename, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1004:Unable to process file " + pofile + " for ref " + VRNO, BuyerCode, SupplierCode, AuditPath);
-                                        AuditMessageData.CreateAuditFile(pofile, MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "PO Generated Successfully for " + UCRefNo);
+                                        AuditMessageData.CreateAuditFile(pofile, MODULE_NAME, UCRefNo, AuditMessageData.UNEXPECTED_ERROR, BuyerCode, SupplierCode, currDocType, "PO Generated Successfully for " + UCRefNo);
                                         if (PrintScreen(filename)) filename = "";
                                     }
                                 }
@@ -2675,7 +2713,7 @@ namespace Http_Navibulgar_IProcessor
                             {
                                 LogText = "Unable to get address details";
                                 //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-address Field(s) not present", BuyerCode, SupplierCode, AuditPath);
-                                AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-address Field(s) not present");
+                                AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.UNEXPECTED_ERROR, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-address Field(s) not present");
 
                             }
                         }
@@ -2683,7 +2721,7 @@ namespace Http_Navibulgar_IProcessor
                         {
                             LogText = "Unable to get PO item details";
                             //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-PO item Field(s) not present", BuyerCode, SupplierCode, AuditPath);
-                            AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-PO item Field(s) not present");
+                            AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.UNEXPECTED_ERROR, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-PO item Field(s) not present");
 
                         }
                     }
@@ -2691,7 +2729,7 @@ namespace Http_Navibulgar_IProcessor
                     {
                         LogText = "Unable to get PO header details";
                         //CreateAuditFile(eFile, "Navibulgar_HTTP_Processor", VRNO, "Error", "LeS-1040:Unable to get details-PO header Field(s) not present", BuyerCode, SupplierCode, AuditPath);
-                        AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.DOWNLOAD_SUCCESS, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-PO header Field(s) not present");
+                        AuditMessageData.CreateAuditFile("", MODULE_NAME, UCRefNo, AuditMessageData.UNEXPECTED_ERROR, BuyerCode, SupplierCode, currDocType, "LeS-1040:Unable to get details-PO header Field(s) not present");
                     }
                 
 
@@ -2890,6 +2928,250 @@ namespace Http_Navibulgar_IProcessor
 
         #endregion
 
+
+        #region POC
+
+        public void ProcessPOC()
+        {
+            try
+            {
+                this.currDocType = "POC";
+                //LogText = "POC processing started.";
+                //List<string> _lstPOs = GetPOList();
+                //DirectoryInfo _dir = new DirectoryInfo(cPOCPath);
+                //FileInfo[] _Files = _dir.GetFiles();
+                //if (_Files != null)
+                //{
+                //    foreach (FileInfo _MtmlFile in _Files)
+                //    {
+                //        MTMLClass _mtml = new MTMLClass();
+                //        _interchange = _mtml.Load(_MtmlFile.FullName);
+                //        LoadInterchangeDetails();
+                //        if (_lstPOs.Count > 0)
+                //        {
+                //            GetPODetails_Confirm(_lstPOs, _interchange, _MtmlFile.FullName);
+                //        }
+                //        else
+                //        {
+                //            LogText = "No  PO found.";
+                //        }
+                //    }
+                //}
+                var pocFiles = _fileStore.DownloadFilesBulk(LeS.FileStore.DownloadFileType.Quote_Poc, FileMoveAction.MoveToInProcess, dctAppSettings, Convert.ToInt32(LINKID));
+                currentMoveDirectory = pocFiles.MovedDirPath; //5 
+                string[] outboxfiles = pocFiles.SavedFiles.ToArray();
+                int j;
+                if (outboxfiles.Length > 0)
+                {
+                    for (j = 0; j < outboxfiles.Length; j++)
+                    {
+                        string file = outboxfiles[j];
+                        currentMtmlFile = file;
+                        MTMLClass _mtml = new MTMLClass();
+                        _interchange = _mtml.Load(file);
+                        LoadInterchangeDetails();
+                        if (currentMtmlFile.Contains("POC")) 
+                        {
+                           // GetPODetails_Confirm(_lstPOs, _interchange, _MtmlFile.FullName); 
+                        }
+                    }
+                    currentAppSettingCount++;
+                }
+                else
+                {
+                    LogText = "No poc document found in directory.";
+                }
+                LogText = "POC processing stopped.";
+            }
+            catch (Exception e)
+            {
+                WriteErrorLog_With_Screenshot("Unable to process due to " + e.GetBaseException().ToString(), "LeS-1004:");
+            }
+        }
+
+        public List<string> GetPOList()
+        {
+            List<string> _lstPOs = new List<string>(); _lstPOs.Clear();
+            _httpWrapper._CurrentDocument.LoadHtml(_httpWrapper._CurrentResponseString);
+
+            if (_httpWrapper._dctStateData.Count > 0)
+            {
+                dctPostDataValues.Clear();
+                dctPostDataValues.Add("__EVENTTARGET", "ctl00%24MainContent%24txtFrom");
+                dctPostDataValues.Add("__EVENTARGUMENT", _httpWrapper._dctStateData["__EVENTARGUMENT"]);
+                dctPostDataValues.Add("__LASTFOCUS", "");
+                dctPostDataValues.Add("__VIEWSTATE", _httpWrapper._dctStateData["__VIEWSTATE"]);
+                dctPostDataValues.Add("__VIEWSTATEGENERATOR", _httpWrapper._dctStateData["__VIEWSTATEGENERATOR"]);
+                dctPostDataValues.Add("__VIEWSTATEENCRYPTED", "");
+                dctPostDataValues.Add("__EVENTVALIDATION", _httpWrapper._dctStateData["__EVENTVALIDATION"]);
+                if (!_httpWrapper._AddRequestHeaders.ContainsKey("Origin")) _httpWrapper._AddRequestHeaders.Add("Origin", @"https://webquote.navbul.com");
+                _httpWrapper.Referrer = "";
+            }
+
+            URL = $"{cSiteURL}suppliers/UnfinOrd.aspx";
+            if (PostURL("table", "id", "MainContent_GridView1"))
+            {
+                HtmlNodeCollection _nodes = _httpWrapper._CurrentDocument.DocumentNode.SelectNodes("//table[@id='MainContent_GridView1']//tr[@onmouseout]");
+                if (_nodes != null)
+                {
+                    if (_nodes.Count > 0)
+                    {
+                        foreach (HtmlNode _row in _nodes)
+                        {
+                            HtmlNodeCollection _rowData = _row.ChildNodes;
+                            string VRNo = _rowData[1].InnerText.Trim();
+                            string Date = _rowData[2].InnerText.Trim();
+                            string Vessel = _rowData[3].InnerText.Trim();
+                            string Port = _rowData[4].InnerText.Trim();
+                            string _url = _row.GetAttributeValue("onclick", "").Trim();
+                            if (_url.Contains(';'))
+                            {
+                                string[] _arrUrl = _url.Split(';');
+                                _url = _arrUrl[1].Replace("&#39", "");
+                            }
+                            string[] _dateArr = Date.Split('/');
+                            if (Convert.ToInt32(_dateArr[2]) == DateTime.Now.Year)
+                            {
+                                string _guid = VRNo + "|" + Date + "|" + Vessel + "|" + Port;
+                                if (!_lstPOs.Contains(VRNo + "|" + Date + "|" + Vessel + "|" + Port + "|" + _url))
+                                {
+                                    _lstPOs.Add(VRNo + "|" + Date + "|" + Vessel + "|" + Port + "|" + _url);
+                                }
+                            }
+                        }
+                    }
+                    else
+                        LogText = "No POs found.";
+                }
+            }
+            return _lstPOs;
+        }
+        public void GetPODetails_Confirm(List<string> _lstPOs, MTMLInterchange _interchange, string POC_File)
+        {
+            string eFile = "";
+            foreach (string strPO in _lstPOs)
+            {
+                try
+                {
+                    string[] lst = strPO.Split('|');
+                    this.VRNO = lst[0];
+                    this.Vessel = lst[1]; this.PODate = lst[2];
+                    this.Port = lst[3];
+                    if (UCRefNo == this.VRNO)
+                    {
+                        URL = lst[4];
+                        string _POguid = this.VRNO + "|" + this.PODate + "|" + this.Vessel + "|" + this.Port;
+
+                        URL = $"{cSiteURL}suppliers/" + URL;
+
+                        if (LoadURL("input", "id", "MainContent_btnConfirm"))
+                        {
+                            LogText = "Processing POC for Ref No. " + this.VRNO;
+                            HtmlNodeCollection _nodes = _httpWrapper._CurrentDocument.DocumentNode.SelectNodes("//table[@id='MainContent_GridView2']//tr");
+                            if (_nodes != null)
+                            {
+                                if (_nodes.Count >= 2)
+                                {
+                                    int i = 1;
+                                    foreach (HtmlNode _tr in _nodes)
+                                    {
+                                        HtmlNodeCollection _td = _tr.ChildNodes;
+                                        if (!_td[1].InnerText.Trim().Contains("Order Number") && !_td[1].InnerText.Trim().Contains("Date") && !_td[1].InnerText.Trim().Contains("Comment"))
+                                        {
+                                            if (convert.ToString(_td[1].InnerText).Trim() == this.VRNO)
+                                            {
+                                                LogText = "Reference Number Matched";
+                                                string cEncryptRefNo = Uri.EscapeDataString(this.VRNO);
+                                                string postURL = URL.Replace(this.VRNO, cEncryptRefNo);
+                                                string strFinalTotal = "0";
+                                                HtmlNode _hFinalTotal = _httpWrapper.GetElement("span", "id", "MainContent_lblTotal");
+                                                if (_hFinalTotal != null)
+                                                {
+                                                    strFinalTotal = _hFinalTotal.InnerText.Trim();
+                                                }
+                                                if (!string.IsNullOrEmpty(strFinalTotal) && strFinalTotal != "0.00")
+                                                {
+                                                    if (Convert.ToInt32(strFinalTotal) == Convert.ToInt32(GrandTotal))
+                                                    {
+                                                        if (ConfirmOrder(URL, postURL))
+                                                        {
+                                                            AuditMessageData.CreateAuditFile(Path.GetFileName(currentMtmlFile), MODULE_NAME, UCRefNo, AuditMessageData.POC_CONFIRMED, BuyerCode, SupplierCode, currDocType, "POC_Confirmed");
+                                                            _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToBackup, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+
+                                                            //CreateAuditFile("", "Navibulgar_HTTP_Processor", VRNO, "Confirmed", "Order" + this.VRNO + " Confirmed successfully.", BuyerCode, SupplierCode, AuditPath);
+                                                            if (SendMail) {
+                                                                //SendMailNotification(_interchange, "POC", UCRefNo, "CONFIRMED", "PO '" + UCRefNo + "' Confirmed Successfully."); 
+                                                                SendMailNotification_JSON(UCRefNo, SendMailQueueAction.SAVED, DocType.POC, AuditMessageData.POC_CONFIRMED, "", "", BUYER_LINK_CODE, SUPPLIER_LINK_CODE, LINKID, NotificationPath, 0, MODULE_NAME + "");
+
+                                                            }//added by kalpita on 04/09/2020
+                                                            //why?
+                                                            //if (_POguid.Length > 0)
+                                                            //    File.AppendAllText(AppDomain.CurrentDomain.BaseDirectory + this.Domain + "_" + this.SupplierCode + "_GUID.txt", _POguid + Environment.NewLine);
+
+                                                            eFile = Path.Combine(this.ImgPath , this.VRNO.Replace("/", "_") + "_" + DateTime.Now.ToString("yyyyMMddHHmmss") + "_" + SupplierCode + ".png");
+                                                            if (!PrintScreen(eFile)) eFile = "";
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        LogText = "Unable to Confirm PO due to amount mismatch (Site Total:" + strFinalTotal + ",Grand Total:" + GrandTotal + ")";
+                                                        eFile = "Navibulgar_HTTP_Error_" + SupplierCode + "_" + BuyerCode + "_" + convert.ToFileName(UCRefNo) + "_" + DateTime.Now.ToString("ddMMyyHHmmssff") + ".png";
+                                                        string path = Path.Combine(this.ImgPath , eFile);
+                                                        PrintScreen(path);
+                                                        _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+
+                                                        //MoveToError("LeS-1008.1:Unable to Confirm PO due to amount mismatch", UCRefNo, POC_File, eFile);
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                LogText = "PO Total amount is 0.";
+                                                eFile = "Navibulgar_HTTP_Error_" + SupplierCode + "_" + BuyerCode + "_" + convert.ToFileName(UCRefNo) + "_" + DateTime.Now.ToString("ddMMyyHHmmssff") + ".png";
+                                                PrintScreen(this.ImgPath + "\\" + eFile);
+                                                _fileStore.MoveFile(currentMtmlFile, FileMoveAction.MoveToInProcess, FileMoveAction.MoveToError, currentMtmlFile, currentMoveDirectory, dctAppSettings);
+
+                                                //MoveToError("LeS-1008.5:Unable to Confirm PO since PO Total amount is 0.", UCRefNo, POC_File, eFile);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteErrorLog_With_Screenshot("Unable to filter details for " + VRNO + " due to " + ex.GetBaseException().Message.ToString(), "LeS-1006:");
+                }
+            }
+        }
+
+        private Boolean ConfirmOrder(string cReferUrl, string postURL)
+        {
+            bool IsConfirm = false;
+            if (_httpWrapper._dctStateData.Count > 0)
+            {
+                dctPostDataValues.Clear();
+                dctPostDataValues.Add("__VIEWSTATE", _httpWrapper._dctStateData["__VIEWSTATE"]);
+                dctPostDataValues.Add("__VIEWSTATEGENERATOR", _httpWrapper._dctStateData["__VIEWSTATEGENERATOR"]);
+                dctPostDataValues.Add("__EVENTVALIDATION", _httpWrapper._dctStateData["__EVENTVALIDATION"]);
+                dctPostDataValues.Add("ctl00%24MainContent%24btnConfirm", "Confirm Order");
+                _httpWrapper.Referrer = cReferUrl;
+            }
+            URL = postURL;
+            if (PostURL("input", "id", "MainContent_Button1"))
+            {
+                LogText = "PO is confirmed."; IsConfirm = true;
+
+            }
+            else
+            {
+                LogText = "Unable to confirm PO."; IsConfirm = false;
+            }
+            return IsConfirm;
+        }
+        #endregion
 
         public void WriteErrorLog_With_Screenshot(string AuditMsg, string ErrorNo)
         {
